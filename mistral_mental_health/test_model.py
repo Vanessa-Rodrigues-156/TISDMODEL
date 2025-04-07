@@ -23,6 +23,5 @@ test_prompts = [
 ]
 
 for prompt in test_prompts:
-    print(f"
-Prompt: {prompt}")
+    print(f"Prompt: {prompt}")
     print(f"Response: {generate_response(prompt)}")
