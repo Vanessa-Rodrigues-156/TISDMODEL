@@ -6,7 +6,7 @@ import requests # type: ignore
 from datetime import datetime
 from transformers import AutoModelForCausalLM
 # Your settings
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = "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"
 LORA_PATH = "mistral_mental_health"
 
 class ChatBot:

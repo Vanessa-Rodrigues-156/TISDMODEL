@@ -1,137 +1,82 @@
-import streamlit as st # type: ignore
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import PeftModel # type: ignore
-import torch # type: ignore
-import requests # type: ignore
+import streamlit as st
+import requests
 from datetime import datetime
-import asyncio
+import json
 
-# Your settings
-OPENROUTER_API_KEY = "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"
-LORA_PATH = "mistral_mental_health"
-class ChatBot:
-    def __init__(self):
-        self.setup_done = False
-        try:
-            self.base_model = AutoModelForCausalLM.from_pretrained(
-                "mistralai/Mistral-7B-Instruct-v0.3",
-                torch_dtype=torch.float16,
-                device_map="auto"
-            )
-            self.tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3")
-            self.lora_model = PeftModel.from_pretrained(
-                self.base_model,
-                LORA_PATH
-            )
-            self.setup_done = True
-        except Exception as e:
-            st.error(f"Error loading models: {str(e)}")
+# Configuration
+OLLAMA_API_URL = "http://localhost:11434/api/generate"
+MODEL_NAME = "mistral_mental_health"
 
-    def get_response(self, prompt, use_lora=True):
-        if use_lora and self.setup_done:
-            try:
-                conversation_history = "\n".join([
-                    f"{msg['role']}: {msg['content']}" 
-                    for msg in st.session_state.messages[-3:]
-                ])
-                
-                system_prompt = f"""You are a supportive friend having a conversation. Be natural and empathetic.
-                Recent conversation:
-                {conversation_history}
+# Initialize session state
+if 'messages' not in st.session_state:
+    st.session_state.messages = []
 
-                Current message: {prompt}
-You are a warm, empathetic friend who listens and offers support. 
-        Keep responses natural and conversational, like talking to a close friend. 
-        Ask follow-up questions to show you care. Share personal examples when appropriate.
-        Avoid clinical language - speak from the heart.If you feel the person is going towards serious mental health issues then slowly persuade the person to go to a counselor not directly"""
-
-                inputs = self.tokenizer(f"[INST]{system_prompt}[/INST]", return_tensors="pt").to(self.lora_model.device)
-                outputs = self.lora_model.generate(
-                    **inputs,
-                    max_length=512,
-                    temperature=0.8,
-                    top_p=0.9,
-                    do_sample=True
-                )
-                response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-                return response.replace(system_prompt, "").strip()
-            except Exception as e:
-                return self.get_openrouter_response(prompt)
-        else:
-            return self.get_openrouter_response(prompt)
-
-    def get_openrouter_response(self, prompt):
+# Function to generate a response using Ollama
+def generate_response(prompt):
+    try:
+        # Get conversation history
         conversation_history = "\n".join([
             f"{msg['role']}: {msg['content']}" 
             for msg in st.session_state.messages[-3:]
         ])
         
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "HTTP-Referer": "http://localhost:8501",
-            "Content-Type": "application/json"
+        # Prepare system prompt
+        system_prompt = f"""You are a supportive friend having a conversation. Be natural and empathetic.
+        Recent conversation:
+        {conversation_history}
+
+        Current message: {prompt}
+        You are a warm, empathetic friend who listens and offers support. 
+        Keep responses natural and conversational, like talking to a close friend. 
+        Always Ask follow-up questions to show you care and you want to listen to their problems. Share personal examples when appropriate and extremely required and in short.
+       
+        Avoid clinical language - speak from the heart. If you feel the person is going towards serious mental health issues then slowly persuade the person to go to a counselor not directly."""
+
+        # Prepare the request payload
+        payload = {
+            "model": MODEL_NAME,
+            "prompt": f"[INST]{system_prompt}[/INST]",
+            "stream": False
         }
+
+        # Make the API request
+        response = requests.post(OLLAMA_API_URL, json=payload)
+        response.raise_for_status()
         
-        data = {
-            "model": "mistralai/mistral-7b-instruct:free",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": """You are a supportive friend having a conversation. Your responses should be:
-                    1. Natural and conversational - like a real friend
-                    2. Empathetic and understanding
-                    3. Gently perceptive of emotional state
-                    4. If you notice signs of depression, gradually and naturally guide towards suggesting professional help
-                    5. Focus on building trust and understanding first
-                    Never start with crisis resources or hotlines unless absolutely necessary."""
-                },
-                {
-                    "role": "user",
-                    "content": f"Previous conversation:\n{conversation_history}\n\nCurrent message: {prompt}"
-                }
-            ],
-            "max_tokens": 500,
-            "temperature": 0.8
-        }
-        
-        try:
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=data
-            )
-            return response.json()['choices'][0]['message']['content']
-        except Exception as e:
-            return f"Error: {str(e)}"
+        # Parse the response
+        response_data = response.json()
+        return response_data.get("response", "").strip()
+    except Exception as e:
+        return f"Error generating response: {str(e)}"
 
 # Streamlit UI
-st.title("Friendly Chat")
-st.caption("2025-04-04 07:25:26")  # Using your specified datetime
-st.caption("User: vanessa@dev")
+st.title("Mental Health Support Chat 💬")
+st.caption(f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-# Initialize bot in session state
-if 'bot' not in st.session_state:
-    st.session_state.bot = ChatBot()
-    st.session_state.messages = []
-
-# Chat interface
+# Display chat messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
 # User input
-if prompt := st.chat_input("What's on your mind?"):
+if prompt := st.chat_input("How can I help you today?"):
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # Display user message
     with st.chat_message("user"):
         st.write(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
-
+    
+    # Get and display assistant response
     with st.chat_message("assistant"):
-        with st.spinner("Typing..."):
-            response = st.session_state.bot.get_response(prompt)
+        with st.spinner("Thinking..."):
+            response = generate_response(prompt + "Answer only in 2-3 sentences and form a conversation with the user by asking follow-up questions.")
             st.write(response)
+    
+    # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})
 
 # Clear chat button
 if st.button("Start New Chat"):
     st.session_state.messages = []
-    st.rerun()  # Using st.rerun() instead of experimental_rerun()
+    st.rerun()
