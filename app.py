@@ -4,14 +4,14 @@ from datetime import datetime
 import json
 
 # Configuration
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "mistral_mental_health"
+API_URL = "https://api-inference.huggingface.co/models/savonamendes156/sthira"
+# You'll need to get this from https://huggingface.co/settings/tokens
+API_TOKEN = st.secrets["HUGGING_FACE_API_TOKEN"]  
 
 # Initialize session state
 if 'messages' not in st.session_state:
     st.session_state.messages = []
 
-# Function to generate a response using Ollama
 def generate_response(prompt):
     try:
         # Get conversation history
@@ -28,24 +28,22 @@ def generate_response(prompt):
         Current message: {prompt}
         You are a warm, empathetic friend who listens and offers support. 
         Keep responses natural and conversational, like talking to a close friend. 
-        Always Ask follow-up questions to show you care and you want to listen to their problems. Share personal examples when appropriate and extremely required and in short.
-       
-        Avoid clinical language - speak from the heart. If you feel the person is going towards serious mental health issues then slowly persuade the person to go to a counselor not directly."""
+        Ask follow-up questions to show you care. Share personal examples when appropriate.
+        Avoid clinical language - speak from the heart."""
 
-        # Prepare the request payload
-        payload = {
-            "model": MODEL_NAME,
-            "prompt": f"[INST]{system_prompt}[/INST]",
-            "stream": False
-        }
-
-        # Make the API request
-        response = requests.post(OLLAMA_API_URL, json=payload)
-        response.raise_for_status()
+        # Make API request to Hugging Face
+        headers = {"Authorization": f"Bearer {API_TOKEN}"}
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json={"inputs": f"[INST]{system_prompt}[/INST]"}
+        )
         
-        # Parse the response
-        response_data = response.json()
-        return response_data.get("response", "").strip()
+        if response.status_code == 200:
+            return response.json()[0]["generated_text"].strip()
+        else:
+            return f"Error: {response.status_code} - {response.text}"
+            
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
