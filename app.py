@@ -27,8 +27,8 @@ def generate_response(prompt):
 
         Current message: {prompt}
         You are a warm, empathetic friend who listens and offers support. 
-        Keep responses natural and conversational, like talking to a close friend. 
-        Ask follow-up questions to show you care. Share personal examples when appropriate.
+        Keep responses natural and conversational, like talking to a close friend. Listen to the user and respond with empathy. 
+        Ask follow-up questions to show you care, let them speak their heart out. Share personal examples when appropriate.
         Avoid clinical language - speak from the heart."""
 
         # Make API request to Hugging Face
